@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs/operators';
 import { Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 
 
 export interface LoginRequest {
@@ -15,11 +16,20 @@ export interface RegisterRequest {
     password: string;
 }
 
+interface DecodedToken {
+    sub: string;
+    roles: string[];
+    exp: number;
+    iat: number;
+  }
+
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private baseUrl = 'http://localhost:8080/api/auth';
+
+  private currentUser = new BehaviorSubject<{ username: string, roles: string[] } | null>(null);
 
   constructor(private http: HttpClient, private router: Router) { }
 
@@ -46,5 +56,24 @@ export class AuthService {
 
   isLoggedIn() {
     return !!this.getToken();
+  }
+
+  getCurrentUser() {
+    return this.currentUser.asObservable();
+  }
+
+  private decodeToken(token: string): DecodedToken {
+    try {
+      return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+      return { sub: '', roles: [], exp: 0, iat: 0 };
+    }
+  }
+
+  isAdmin(): boolean {
+    const token = this.getToken();
+    if (!token) return false;
+    const decoded = this.decodeToken(token);
+    return decoded.roles?.includes('ADMIN') || false;
   }
 }
